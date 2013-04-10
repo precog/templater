@@ -29,6 +29,9 @@ class ConfMultiplexerSpec extends Specification {
     Multiplexing combinations
       Generates lists of configurations for every combination               $combinationsAreCartesianProducts
       Includes parameters from each combined configuration                  $combinationParametersAreCombined
+      Does not include parameters from other combinations in each           $combinationsAreNotMixed
+      Prefer values of nested parameters when overriding                    $combinationParametersArePreferred
+      Overrides parameters from early sets by late sets                     $combinationsOverrideLeftToRight
   """
 
   val confMultiplexer = new ConfMultiplexer
@@ -47,47 +50,6 @@ class ConfMultiplexerSpec extends Specification {
 
   val conf = Configuration parse (sourceConfiguration, BlockFormat) detach "templater"
 
-  val confWithTypeList = {
-    val aBlock = Configuration("aParam" -> 1)
-    val bBlock = Configuration("bParam" -> true)
-    val cBlock = Configuration("cParam" -> "c")
-
-    (conf
-      set ("type", "list")
-      set ("list", List("a", "b", "c"))
-      attach ("a", aBlock)
-      attach ("b", bBlock)
-      attach ("c", cBlock)
-      )
-  }
-
-  val deeplyNestedListConf = {
-    val bBlock = Configuration("b" -> true, "x" -> 6)
-    val aBlock = Configuration("type" -> "list", "list" -> List("b")) attach ("b", bBlock)
-
-    conf set ("type", "list") set ("list", List("a")) attach ("a", aBlock)
-  }
-
-  val confWithTypeCombination = {
-    val a1Block = Configuration("aParam" -> 1)
-    val a2Block = Configuration("aParam" -> 2)
-    val a3Block = Configuration("aParam" -> 3)
-    val b1Block = Configuration("bParam" -> true)
-    val b2Block = Configuration("bParam" -> false)
-
-    (conf
-      set ("type", "combination")
-      set ("combination", List("a", "b"))
-      set ("a", List("a1", "a2", "a3"))
-      set ("b", List("b1", "b2"))
-      attach ("a1", a1Block)
-      attach ("a2", a2Block)
-      attach ("a3", a3Block)
-      attach ("b1", b1Block)
-      attach ("b2", b2Block)
-      )
-  }
-
   def flatConfigurationIsListOfOneMap = {
     // FIXME: make this test work with non-List returns
     val multiplexedValues @ (ConfMap(_, values) :: _) = confMultiplexer multiplex conf
@@ -105,6 +67,20 @@ class ConfMultiplexerSpec extends Specification {
       case ("y", yValue) => yValue === "true"
       case ("z", zValue) => zValue === "\"abc\""
     }
+  }
+
+  val confWithTypeList = {
+    val aBlock = Configuration("aParam" -> 1)
+    val bBlock = Configuration("bParam" -> true)
+    val cBlock = Configuration("cParam" -> "c")
+
+    (conf
+      set ("type", "list")
+      set ("list", List("a", "b", "c"))
+      attach ("a", aBlock)
+      attach ("b", bBlock)
+      attach ("c", cBlock)
+      )
   }
 
   def listsAreListsOfValues = {
@@ -176,6 +152,13 @@ class ConfMultiplexerSpec extends Specification {
       (valuesB must not haveKey ("cParam"))
   }
 
+  val deeplyNestedListConf = {
+    val bBlock = Configuration("b" -> true, "x" -> 6)
+    val aBlock = Configuration("type" -> "list", "list" -> List("b")) attach ("b", bBlock)
+
+    conf set ("type", "list") set ("list", List("a")) attach ("a", aBlock)
+  }
+
   def listsCanBeNested = {
     // FIXME: make this test work with non-List returns
     val multiplexedValues @ (ConfMap(_, valuesA) :: _) = confMultiplexer multiplex deeplyNestedListConf
@@ -193,8 +176,7 @@ class ConfMultiplexerSpec extends Specification {
   }
 
   def nestedParametersArePreferred = {
-    // FIXME: make this test work with non-List returns
-    val ConfMap(_, valuesA) :: _ = confMultiplexer multiplex deeplyNestedListConf
+    val Seq(ConfMap(_, valuesA), _*) = confMultiplexer multiplex deeplyNestedListConf
 
     valuesA must haveOneElementLike {
       case ("x", xValue) => xValue === "6"
@@ -206,6 +188,26 @@ class ConfMultiplexerSpec extends Specification {
     val ConfMap(path, _) :: _ = confMultiplexer multiplex deeplyNestedListConf
 
     path must beEqualTo(List("a", "b"))
+  }
+
+  val confWithTypeCombination = {
+    val a1Block = Configuration("aParam" -> 1, "a1" -> "x", "x" -> 6)
+    val a2Block = Configuration("aParam" -> 2, "a2" -> "y", "x" -> 6)
+    val a3Block = Configuration("aParam" -> 3, "a3" -> "z")
+    val b1Block = Configuration("bParam" -> true, "b1" -> "w")
+    val b2Block = Configuration("bParam" -> false, "b2" -> "ww", "x" -> 7)
+
+    (conf
+      set ("type", "combination")
+      set ("combination", List("a", "b"))
+      set ("a", List("a1", "a2", "a3"))
+      set ("b", List("b1", "b2"))
+      attach ("a1", a1Block)
+      attach ("a2", a2Block)
+      attach ("a3", a3Block)
+      attach ("b1", b1Block)
+      attach ("b2", b2Block)
+      )
   }
 
   def combinationsAreCartesianProducts = {
@@ -251,7 +253,42 @@ class ConfMultiplexerSpec extends Specification {
     }
   }
 
-  """
+    def combinationsAreNotMixed = {
+      val multiplexedValues = confMultiplexer multiplex confWithTypeCombination
+
+      multiplexedValues must haveAllElementsLike {
+        case ConfMap(List("a1", "b1"), valuesA1B1) =>
+          valuesA1B1 must not haveKeys("a2", "a3", "b2")
+        case ConfMap(List("a2", "b1"), valuesA2B1) =>
+          valuesA2B1 must not haveKeys("a1", "a3", "b2")
+        case ConfMap(List("a3", "b1"), valuesA3B1) =>
+          valuesA3B1 must not haveKeys("a1", "a2", "b2")
+        case ConfMap(List("a1", "b2"), valuesA1B2) =>
+          valuesA1B2 must not haveKeys("a2", "a3", "b1")
+        case ConfMap(List("a2", "b2"), valuesA2B2) =>
+          valuesA2B2 must not haveKeys("a1", "a3", "b1")
+        case ConfMap(List("a3", "b2"), valuesA3B2) =>
+          valuesA3B2 must not haveKeys("a1", "a2", "b1")
+      }
+  }
+
+  def combinationParametersArePreferred = {
+    val multiplexedValues = confMultiplexer multiplex confWithTypeCombination
+    multiplexedValues must haveAllElementsLike {
+      case ConfMap(List("a1", "b1"), valuesA1B1) =>
+        valuesA1B1 must havePair("x", "6")
+    }
+  }
+
+  def combinationsOverrideLeftToRight = {
+    val multiplexedValues = confMultiplexer multiplex confWithTypeCombination
+    multiplexedValues must haveAllElementsLike {
+      case ConfMap(List("a2", "b2"), valuesA1B1) =>
+        valuesA1B1 must havePair("x", "7")
+    }
+  }
+
+/*  """
     |templater {
     |  type = list
     |  list = [standard, shardsOnly]
@@ -281,6 +318,6 @@ class ConfMultiplexerSpec extends Specification {
     |  }
     |}
     |
-  """.stripMargin
+  """.stripMargin*/
 }
 

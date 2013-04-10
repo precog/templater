@@ -5,15 +5,15 @@ import scala.reflect.runtime.currentMirror
 
 /** Generates interpolated strings based on input strings and parameters.
   */
-class Interpolator(vals: (String, String)*) {
+class Interpolator(parameters: (String, String)*) {
   val startInterpolation = """s""""""
   val endInterpolation = """""""""
 
-  val simpleVals = vals.collect {
+  val simpleVals = parameters.collect {
     case (name, value) if !value.contains('$') => s"val $name = $value"
   }
 
-  val codeVals = vals.collect {
+  val codeVals = parameters.collect {
     case (name, value) if value contains '$' => s"val $name = " + startInterpolation + value + endInterpolation
   }
 
@@ -21,6 +21,9 @@ class Interpolator(vals: (String, String)*) {
 
   val toolBox = currentMirror.mkToolBox()
 
+  /** Interpolate the input string using Scala's s interpolator, with the parameters passed
+    * on the constructor in scope.
+    */
   def interpolate(template: String): String = {
     val expression = startInterpolation + template + endInterpolation
     val sourceCode = prefix :+ expression mkString "\n"
