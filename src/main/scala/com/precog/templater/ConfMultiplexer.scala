@@ -9,9 +9,15 @@ import org.streum.configrity.converter.ValueConverter
   */
 class ConfMultiplexer {
   def multiplex(configuration: Configuration): Seq[Seq[(String, String)]] = {
+    val confType = configuration.get[String]("type")
+    val parameters = {
+      val typelessConf = configuration clear "type"
+      confType map typelessConf.clear getOrElse typelessConf
+    }
+
     def quoteString(string: String) = '"' + string + '"'
 
-    def tryConf[A : ValueConverter](key: String) = Try(configuration[A](key))
+    def tryConf[A : ValueConverter](key: String) = Try(parameters[A](key))
 
     def tryLists(key: String) = (
       tryConf[List[Boolean]](key)
@@ -24,13 +30,17 @@ class ConfMultiplexer {
       orElse tryConf[Int](key)
     )
 
-    def decode(key: String) = tryLists(key) orElse tryAtoms(key) getOrElse quoteString(configuration[String](key))
+    def decode(key: String) = tryLists(key) orElse tryAtoms(key) getOrElse quoteString(parameters[String](key))
 
-    val commonValues = configuration.data.keys.toSeq collect {
+    val commonValues = parameters.data.keys.toSeq collect {
       case key if !key.contains('.') => key -> decode(key).toString()
     }
 
-    List(commonValues)
-  }
+    confType match {
+      case Some("list") =>
+        List.fill(configuration[List[String]]("list").length)(commonValues)
 
+      case Some(_) | None => List(commonValues)
+    }
+  }
 }
