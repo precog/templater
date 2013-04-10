@@ -1,14 +1,18 @@
 package com.precog.templater
 
-import org.streum.configrity.Configuration
+import scala.collection.breakOut
 import scala.util.Try
+import org.streum.configrity.Configuration
 import org.streum.configrity.converter.ValueConverter
 
 /** Breaks the detached configuration for the multiplexer into multiple
-  * sets of values.
+  * maps of parameters, each of which has a corresponding path.
   */
 class ConfMultiplexer {
-  def multiplex(configuration: Configuration): Seq[Seq[(String, String)]] = {
+
+  // TODO: Return a Validation
+  /** Generate a sequence of parameter maps, each of which gets associated with a path of generation */
+  def multiplex(configuration: Configuration): Seq[ConfMap] = {
     val confType = configuration.get[String]("type")
     val parameters = {
       val typelessConf = configuration clear "type"
@@ -32,15 +36,36 @@ class ConfMultiplexer {
 
     def decode(key: String) = tryLists(key) orElse tryAtoms(key) getOrElse quoteString(parameters[String](key))
 
-    val commonValues = parameters.data.keys.toSeq collect {
+    val commonValues: Map[String, String] = parameters.data.keySet.collect {
       case key if !key.contains('.') => key -> decode(key).toString()
-    }
+    }(breakOut)
 
     confType match {
       case Some("list") =>
-        List.fill(configuration[List[String]]("list").length)(commonValues)
+        val result = for {
+          element <- configuration[List[String]]("list")
+          subConf <- multiplex(configuration detach element)
+        } yield subConf copy (path = element :: subConf.path, parameters = commonValues ++ subConf.parameters)
 
-      case Some(_) | None => List(commonValues)
+        result
+
+      case Some("combination") =>
+        val combList = for {
+          element <- configuration[List[String]]("combination")
+        } yield configuration[List[String]](element)
+
+        combList.foldLeft(List(ConfMap(Nil, commonValues))) {
+          case (partialResult, list) =>
+            for {
+              ConfMap(path, parameters) <- partialResult
+              element <- list
+              subConf <- multiplex(configuration detach element)
+            } yield subConf copy (path = path ::: (element :: subConf.path),
+                                  parameters = parameters ++ subConf.parameters)
+        } map (conf => conf copy (parameters = commonValues ++ conf.parameters))
+
+      // FIXME: unknown types must produce errors
+      case Some(_) | None => Seq(ConfMap(path = Nil, parameters = commonValues))
     }
   }
 }
