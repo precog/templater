@@ -16,7 +16,7 @@ object Templater {
         // TODO: add codec option (really?)
         // TODO: option to limit which paramss should be processed
         opt("c", "config", "configuration file; defaults to templater.conf") {
-          (v: String, c: Config) => c.copy(targetDir = v)
+          (v: String, c: Config) => c.copy(configPath = v)
         },
         opt("o", "output", "output directory for interpolated files; defaults to current work directory") {
           (v: String, c: Config) => c.copy(targetDir = v)
@@ -34,7 +34,7 @@ object Templater {
 
     // parser.parse returns Option[C]
     parser.parse(args, Config()) foreach { argConf =>
-      val conf = Configuration.load(argConf.configPath) // FIXME: deal gracefully with configuration not found
+      val conf = Configuration load argConf.configPath detach "templater" // FIXME: deal gracefully with configuration not found
       val confMultiplexer = new ConfMultiplexer
       val confMaps = confMultiplexer multiplex conf
       val targetPath = FileSystem.default fromString argConf.targetDir // FIXME: create if necessary or abort if not found
@@ -60,6 +60,8 @@ object Templater {
     val subdir = Path(confMap.path: _*)
     val outputDir = targetPath / subdir
     val outputFile = outputDir / (inputFile.simpleName)
+
+    println(s"Generating $outputFile") // FIXME: debug logging
 
     outputFile.write(output)(Codec.UTF8)
   }

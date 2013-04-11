@@ -24,11 +24,11 @@ class Interpolator(parameters: (String, String)*) {
   /** Interpolate the input string using Scala's s interpolator, with the parameters passed
     * on the constructor in scope.
     */
-  def interpolate(template: String): String = {
+  def interpolate(template: String): String = { // FIXME: return Validation
     val expression = startInterpolation + template + endInterpolation
     val sourceCode = prefix :+ expression mkString "\n"
     val parsedCode = toolBox parse sourceCode
-    val result = toolBox eval parsedCode
+    val result = toolBox eval parsedCode // FIXME: catch exceptions and report them as errors
 
     result.asInstanceOf[String]
   }
