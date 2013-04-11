@@ -14,8 +14,11 @@ class ConfMultiplexer {
   /** Generate a sequence of parameter maps, each of which gets associated with a path of generation */
   def multiplex(configuration: Configuration): Seq[ConfMap] = {
     val confType = configuration.get[String]("type")
+
+    val sourceLocation = configuration.get[String]("templateSource")
+
     val parameters = {
-      val typelessConf = configuration clear "type"
+      val typelessConf = configuration clear "type" clear "templateSource"
       confType map typelessConf.clear getOrElse typelessConf
     }
 
@@ -54,18 +57,19 @@ class ConfMultiplexer {
           element <- configuration[List[String]]("combination")
         } yield configuration[List[String]](element)
 
-        combList.foldLeft(List(ConfMap(Nil, commonValues))) {
+        combList.foldLeft(List(ConfMap(Nil, sourceLocation, commonValues))) {
           case (partialResult, list) =>
             for {
-              ConfMap(path, parameters) <- partialResult
+              ConfMap(path, source, parameters) <- partialResult
               element <- list
               subConf <- multiplex(configuration detach element)
             } yield subConf copy (path = path ::: (element :: subConf.path),
+                                  source = subConf.source orElse source,
                                   parameters = parameters ++ subConf.parameters)
         } map (conf => conf copy (parameters = commonValues ++ conf.parameters))
 
       // FIXME: unknown types must produce errors
-      case Some(_) | None => Seq(ConfMap(path = Nil, parameters = commonValues))
+      case Some(_) | None => Seq(ConfMap(path = Nil, source = sourceLocation, parameters = commonValues))
     }
   }
 }

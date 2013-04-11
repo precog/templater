@@ -13,7 +13,9 @@ class ConfMultiplexerSpec extends Specification {
       Returns all parameters in a single map for flat configurations        $flatConfigurationIsListOfOneMap
       Quotes strings but not booleans and integers                          $quoteStringButNotIntsAndBooleans
       Decodes lists as lists with quoted rules as for scalars               $listsAreListsOfValues
-      Does not treat "type" as a parameter                                  $typeIsNotParameter
+
+    Special parameters
+      Does not treat "type" or "templateSource" as a parameters             $ignoresSpecialParameters
       Does not treat the value of "type" as a parameter                     $typeValueIsNotParameter
       Ignores nested blocks as source for parameters                        $ignoreNestedBlocksTest
 
@@ -52,7 +54,7 @@ class ConfMultiplexerSpec extends Specification {
 
   def flatConfigurationIsListOfOneMap = {
     // FIXME: make this test work with non-List returns
-    val multiplexedValues @ (ConfMap(_, values) :: _) = confMultiplexer multiplex conf
+    val multiplexedValues @ (ConfMap(_, _, values) :: _) = confMultiplexer multiplex conf
 
     (multiplexedValues must haveSize(1)) and
       (values must haveSize(6))
@@ -60,7 +62,7 @@ class ConfMultiplexerSpec extends Specification {
 
   def quoteStringButNotIntsAndBooleans = {
     // FIXME: make this test work with non-List returns
-    val ConfMap(_, values) :: _ = confMultiplexer multiplex conf
+    val ConfMap(_, _, values) :: _ = confMultiplexer multiplex conf
 
     values must haveAllElementsLike {
       case ("x", xValue) => xValue === "5"
@@ -77,6 +79,7 @@ class ConfMultiplexerSpec extends Specification {
     (conf
       set ("type", "list")
       set ("list", List("a", "b", "c"))
+      set ("templateSource", "a/b/c")
       attach ("a", aBlock)
       attach ("b", bBlock)
       attach ("c", cBlock)
@@ -85,7 +88,7 @@ class ConfMultiplexerSpec extends Specification {
 
   def listsAreListsOfValues = {
     // FIXME: make this test work with non-List returns
-    val ConfMap(_, values) :: _ = confMultiplexer multiplex conf
+    val ConfMap(_, _, values) :: _ = confMultiplexer multiplex conf
 
     values must haveAllElementsLike {
       case ("xx", xValue) => xValue === "List(1, 2, 3)"
@@ -94,16 +97,16 @@ class ConfMultiplexerSpec extends Specification {
     }
   }
 
-  def typeIsNotParameter = {
-    // FIXME: make this test work with non-List returns
-    val ConfMap(_, valuesWithType) :: _ = confMultiplexer multiplex confWithTypeList
+  def ignoresSpecialParameters = {
+    val Seq(ConfMap(_, _, valuesWithType), _*) = confMultiplexer multiplex confWithTypeList
 
-    valuesWithType must not haveKey("type")
+    (valuesWithType.pp must not haveKey("type")) and
+      (valuesWithType must not haveKey("templateSource"))
   }
 
   def typeValueIsNotParameter = {
     // FIXME: make this test work with non-List returns
-    val ConfMap(_, valuesWithType) :: _ = confMultiplexer multiplex confWithTypeList
+    val ConfMap(_, _, valuesWithType) :: _ = confMultiplexer multiplex confWithTypeList
 
     valuesWithType must not haveKey("list")
   }
@@ -117,7 +120,7 @@ class ConfMultiplexerSpec extends Specification {
 
     val nestedConf = conf attach ("subBlock", Configuration parse nestedBlock)
     // FIXME: make this test work with non-List returns
-    val ConfMap(_, values) :: _ = confMultiplexer multiplex nestedConf
+    val ConfMap(_, _, values) :: _ = confMultiplexer multiplex nestedConf
 
     values must haveSize(6)
   }
@@ -132,7 +135,7 @@ class ConfMultiplexerSpec extends Specification {
   def listsReturnsParameters = {
     // FIXME: make this test not order-dependent
     // FIXME: make this test work with non-List returns
-    val ConfMap(_, valuesA) :: ConfMap(_, valuesB) :: ConfMap(_, valuesC) :: _ = confMultiplexer multiplex confWithTypeList
+    val ConfMap(_, _, valuesA) :: ConfMap(_, _, valuesB) :: ConfMap(_, _, valuesC) :: _ = confMultiplexer multiplex confWithTypeList
 
     (valuesA must contain ("aParam" -> "1")) and
       (valuesB must contain ("bParam" -> "true")) and
@@ -142,7 +145,7 @@ class ConfMultiplexerSpec extends Specification {
   def oneListPerNestedConf = {
     // FIXME: make this test not order-dependent
     // FIXME: make this test work with non-List returns
-    val ConfMap(_, valuesA) :: ConfMap(_, valuesB) :: ConfMap(_, valuesC) :: _ = confMultiplexer multiplex confWithTypeList
+    val ConfMap(_, _, valuesA) :: ConfMap(_, _, valuesB) :: ConfMap(_, _, valuesC) :: _ = confMultiplexer multiplex confWithTypeList
 
     (valuesB must not haveKey ("aParam")) and
       (valuesC must not haveKey ("aParam")) and
@@ -161,7 +164,7 @@ class ConfMultiplexerSpec extends Specification {
 
   def listsCanBeNested = {
     // FIXME: make this test work with non-List returns
-    val multiplexedValues @ (ConfMap(_, valuesA) :: _) = confMultiplexer multiplex deeplyNestedListConf
+    val multiplexedValues @ (ConfMap(_, _, valuesA) :: _) = confMultiplexer multiplex deeplyNestedListConf
 
     (multiplexedValues must haveSize(1)) and
       (valuesA must haveOneElementLike { case ("b", bValue) => bValue === "true"})
@@ -169,14 +172,14 @@ class ConfMultiplexerSpec extends Specification {
 
   def parametersAreOverridden = {
     // FIXME: make this test work with non-List returns
-    val ConfMap(_, values) :: _ = confMultiplexer multiplex conf
-    val ConfMap(_, valuesA) :: _ = confMultiplexer multiplex deeplyNestedListConf
+    val ConfMap(_, _, values) :: _ = confMultiplexer multiplex conf
+    val ConfMap(_, _, valuesA) :: _ = confMultiplexer multiplex deeplyNestedListConf
 
     valuesA must haveSize(values.size + 1) // deeplyNestedListConf adds a parameter and overrides another
   }
 
   def nestedParametersArePreferred = {
-    val Seq(ConfMap(_, valuesA), _*) = confMultiplexer multiplex deeplyNestedListConf
+    val Seq(ConfMap(_, _, valuesA), _*) = confMultiplexer multiplex deeplyNestedListConf
 
     valuesA must haveOneElementLike {
       case ("x", xValue) => xValue === "6"
@@ -185,7 +188,7 @@ class ConfMultiplexerSpec extends Specification {
 
   def nestedConfsReturnPaths = {
     // FIXME: make this test work with non-List returns
-    val ConfMap(path, _) :: _ = confMultiplexer multiplex deeplyNestedListConf
+    val ConfMap(path, _, _) :: _ = confMultiplexer multiplex deeplyNestedListConf
 
     path must beEqualTo(List("a", "b"))
   }
@@ -220,32 +223,32 @@ class ConfMultiplexerSpec extends Specification {
     val multiplexedValues = confMultiplexer multiplex confWithTypeCombination
 
     multiplexedValues must haveAllElementsLike {
-      case ConfMap(List("a1", "b1"), valuesA1B1) =>
+      case ConfMap(List("a1", "b1"), _, valuesA1B1) =>
         valuesA1B1 must haveAllElementsLike {
           case ("aParam", aValue) => aValue === "1"
           case ("bParam", bValue) => bValue === "true"
         }
-      case ConfMap(List("a2", "b1"), valuesA2B1) =>
+      case ConfMap(List("a2", "b1"), _, valuesA2B1) =>
         valuesA2B1 must haveAllElementsLike {
           case ("aParam", aValue) => aValue === "2"
           case ("bParam", bValue) => bValue === "true"
         }
-      case ConfMap(List("a3", "b1"), valuesA3B1) =>
+      case ConfMap(List("a3", "b1"), _, valuesA3B1) =>
         valuesA3B1 must haveAllElementsLike {
           case ("aParam", aValue) => aValue === "3"
           case ("bParam", bValue) => bValue === "true"
         }
-      case ConfMap(List("a1", "b2"), valuesA1B2) =>
+      case ConfMap(List("a1", "b2"), _, valuesA1B2) =>
         valuesA1B2 must haveAllElementsLike {
           case ("aParam", aValue) => aValue === "1"
           case ("bParam", bValue) => bValue === "false"
         }
-      case ConfMap(List("a2", "b2"), valuesA2B2) =>
+      case ConfMap(List("a2", "b2"), _, valuesA2B2) =>
         valuesA2B2 must haveAllElementsLike {
           case ("aParam", aValue) => aValue === "2"
           case ("bParam", bValue) => bValue === "false"
         }
-      case ConfMap(List("a3", "b2"), valuesA3B2) =>
+      case ConfMap(List("a3", "b2"), _, valuesA3B2) =>
         valuesA3B2 must haveAllElementsLike {
           case ("aParam", aValue) => aValue === "3"
           case ("bParam", bValue) => bValue === "false"
@@ -256,18 +259,19 @@ class ConfMultiplexerSpec extends Specification {
     def combinationsAreNotMixed = {
       val multiplexedValues = confMultiplexer multiplex confWithTypeCombination
 
+      // FIXME: not haveKeys == exists(key / key not in values), but we need forall
       multiplexedValues must haveAllElementsLike {
-        case ConfMap(List("a1", "b1"), valuesA1B1) =>
+        case ConfMap(List("a1", "b1"), _, valuesA1B1) =>
           valuesA1B1 must not haveKeys("a2", "a3", "b2")
-        case ConfMap(List("a2", "b1"), valuesA2B1) =>
+        case ConfMap(List("a2", "b1"), _, valuesA2B1) =>
           valuesA2B1 must not haveKeys("a1", "a3", "b2")
-        case ConfMap(List("a3", "b1"), valuesA3B1) =>
+        case ConfMap(List("a3", "b1"), _, valuesA3B1) =>
           valuesA3B1 must not haveKeys("a1", "a2", "b2")
-        case ConfMap(List("a1", "b2"), valuesA1B2) =>
+        case ConfMap(List("a1", "b2"), _, valuesA1B2) =>
           valuesA1B2 must not haveKeys("a2", "a3", "b1")
-        case ConfMap(List("a2", "b2"), valuesA2B2) =>
+        case ConfMap(List("a2", "b2"), _, valuesA2B2) =>
           valuesA2B2 must not haveKeys("a1", "a3", "b1")
-        case ConfMap(List("a3", "b2"), valuesA3B2) =>
+        case ConfMap(List("a3", "b2"), _, valuesA3B2) =>
           valuesA3B2 must not haveKeys("a1", "a2", "b1")
       }
   }
@@ -275,7 +279,7 @@ class ConfMultiplexerSpec extends Specification {
   def combinationParametersArePreferred = {
     val multiplexedValues = confMultiplexer multiplex confWithTypeCombination
     multiplexedValues must haveAllElementsLike {
-      case ConfMap(List("a1", "b1"), valuesA1B1) =>
+      case ConfMap(List("a1", "b1"), _, valuesA1B1) =>
         valuesA1B1 must havePair("x", "6")
     }
   }
@@ -283,12 +287,12 @@ class ConfMultiplexerSpec extends Specification {
   def combinationsOverrideLeftToRight = {
     val multiplexedValues = confMultiplexer multiplex confWithTypeCombination
     multiplexedValues must haveAllElementsLike {
-      case ConfMap(List("a2", "b2"), valuesA1B1) =>
+      case ConfMap(List("a2", "b2"), _, valuesA1B1) =>
         valuesA1B1 must havePair("x", "7")
     }
   }
 
-/*  """
+  """
     |templater {
     |  type = list
     |  list = [standard, shardsOnly]
@@ -299,6 +303,8 @@ class ConfMultiplexerSpec extends Specification {
     |    services = [ shard, ingest, auth, accounts, jobs ]
     |    environments = [ dev, beta, special ]
     |    instances = [ main, b ]
+    |
+    |    templateSource = commonFiles
     |
     |    shard {
     |      servicePrefix = shard
@@ -318,6 +324,6 @@ class ConfMultiplexerSpec extends Specification {
     |  }
     |}
     |
-  """.stripMargin*/
+  """.stripMargin
 }
 
