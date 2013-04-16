@@ -13,8 +13,10 @@ class Interpolator(parameters: (String, String)*) {
     case (name, value) if !value.contains('$') => s"val $name = $value"
   }
 
+  def unquote(s: String) = s substring (1, s.length - 1)
+
   val codeVals = parameters.collect {
-    case (name, value) if value contains '$' => s"val $name = " + startInterpolation + value + endInterpolation
+    case (name, value) if value contains '$' => s"val $name = " + startInterpolation + unquote(value) + endInterpolation
   }
 
   val prefix = simpleVals ++ codeVals

@@ -26,13 +26,13 @@ class InterpolatorSpec extends Specification {
   }
 
   def interpolationWithScalaCodeTest = {
-    val interpolator = new Interpolator("code" -> "${5 * 5}")
+    val interpolator = new Interpolator("code" -> "\"${5 * 5}\"")
 
     interpolator interpolate "evaluating $code" must beEqualTo("evaluating 25")
   }
 
   def constantsBeforeCodeTest = {
-    val interpolator = new Interpolator("code" -> "${b * a}", "a" -> "5", "b" -> "\"x\"")
+    val interpolator = new Interpolator("code" -> "\"${b * a}\"", "a" -> "5", "b" -> "\"x\"")
 
     interpolator interpolate "evaluating $code" must beEqualTo("evaluating xxxxx")
   }
