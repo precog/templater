@@ -18,6 +18,7 @@ class ConfMultiplexerSpec extends Specification {
       Does not treat "type" or "templateSource" as a parameters             $ignoresSpecialParameters
       Does not treat the value of "type" as a parameter                     $typeValueIsNotParameter
       Ignores nested blocks as source for parameters                        $ignoreNestedBlocksTest
+      Returns the value of templateSource if found                          $returnsTemplateSource
 
     Multiplexing lists
       Generates lists of configurations for type list                       $oneConfPerElementOfList
@@ -27,6 +28,7 @@ class ConfMultiplexerSpec extends Specification {
       Overrides parameters instead of duplicating them                      $parametersAreOverridden
       Prefer the values of nested parameters when overriding                $nestedParametersArePreferred
       Returns paths corresponding to each parameter set                     $nestedConfsReturnPaths
+      Give precedence to nested templateSource                              $nestedTemplateSourceArePreferred
 
     Multiplexing combinations
       Generates lists of configurations for every combination               $combinationsAreCartesianProducts
@@ -34,6 +36,7 @@ class ConfMultiplexerSpec extends Specification {
       Does not include parameters from other combinations in each           $combinationsAreNotMixed
       Prefer values of nested parameters when overriding                    $combinationParametersArePreferred
       Overrides parameters from early sets by late sets                     $combinationsOverrideLeftToRight
+      Give precedence to nested templateSource                              $combinationsPreferNestedTemplateSource
   """
 
   val confMultiplexer = new ConfMultiplexer
@@ -106,7 +109,7 @@ class ConfMultiplexerSpec extends Specification {
 
   def typeValueIsNotParameter = {
     // FIXME: make this test work with non-List returns
-    val ConfMap(_, _, valuesWithType) :: _ = confMultiplexer multiplex confWithTypeList
+    val Seq(ConfMap(_, _, valuesWithType), _*) = confMultiplexer multiplex confWithTypeList
 
     valuesWithType must not haveKey("list")
   }
@@ -125,6 +128,11 @@ class ConfMultiplexerSpec extends Specification {
     values must haveSize(6)
   }
 
+  def returnsTemplateSource = {
+    val Seq(ConfMap(_, source, _), _*) = confMultiplexer multiplex confWithTypeList
+
+    source must beSome("a/b/c")
+  }
 
   def oneConfPerElementOfList = {
     val multiplexedValues = confMultiplexer multiplex confWithTypeList
@@ -156,10 +164,10 @@ class ConfMultiplexerSpec extends Specification {
   }
 
   val deeplyNestedListConf = {
-    val bBlock = Configuration("b" -> true, "x" -> 6)
+    val bBlock = Configuration("b" -> true, "x" -> 6, "templateSource" -> "y")
     val aBlock = Configuration("type" -> "list", "list" -> List("b")) attach ("b", bBlock)
 
-    conf set ("type", "list") set ("list", List("a")) attach ("a", aBlock)
+    conf set ("type", "list") set ("list", List("a")) set ("templateSource", "x") attach ("a", aBlock)
   }
 
   def listsCanBeNested = {
@@ -187,17 +195,22 @@ class ConfMultiplexerSpec extends Specification {
   }
 
   def nestedConfsReturnPaths = {
-    // FIXME: make this test work with non-List returns
-    val ConfMap(path, _, _) :: _ = confMultiplexer multiplex deeplyNestedListConf
+    val Seq(ConfMap(path, _, _), _*) = confMultiplexer multiplex deeplyNestedListConf
 
     path must beEqualTo(List("a", "b"))
+  }
+
+  def nestedTemplateSourceArePreferred = {
+    val Seq(ConfMap(_, source, _), _*) = confMultiplexer multiplex deeplyNestedListConf
+
+    source must beSome("y")
   }
 
   val confWithTypeCombination = {
     val a1Block = Configuration("aParam" -> 1, "a1" -> "x", "x" -> 6)
     val a2Block = Configuration("aParam" -> 2, "a2" -> "y", "x" -> 6)
     val a3Block = Configuration("aParam" -> 3, "a3" -> "z")
-    val b1Block = Configuration("bParam" -> true, "b1" -> "w")
+    val b1Block = Configuration("bParam" -> true, "b1" -> "w", "templateSource" -> "y")
     val b2Block = Configuration("bParam" -> false, "b2" -> "ww", "x" -> 7)
 
     (conf
@@ -205,6 +218,7 @@ class ConfMultiplexerSpec extends Specification {
       set ("combination", List("a", "b"))
       set ("a", List("a1", "a2", "a3"))
       set ("b", List("b1", "b2"))
+      set ("templateSource", "x")
       attach ("a1", a1Block)
       attach ("a2", a2Block)
       attach ("a3", a3Block)
@@ -278,6 +292,7 @@ class ConfMultiplexerSpec extends Specification {
 
   def combinationParametersArePreferred = {
     val multiplexedValues = confMultiplexer multiplex confWithTypeCombination
+
     multiplexedValues must haveAllElementsLike {
       case ConfMap(List("a1", "b1"), _, valuesA1B1) =>
         valuesA1B1 must havePair("x", "6")
@@ -286,9 +301,19 @@ class ConfMultiplexerSpec extends Specification {
 
   def combinationsOverrideLeftToRight = {
     val multiplexedValues = confMultiplexer multiplex confWithTypeCombination
+
     multiplexedValues must haveAllElementsLike {
       case ConfMap(List("a2", "b2"), _, valuesA1B1) =>
         valuesA1B1 must havePair("x", "7")
+    }
+  }
+
+  def combinationsPreferNestedTemplateSource = {
+    val multiplexedValues = confMultiplexer multiplex confWithTypeCombination
+
+    multiplexedValues must haveAllElementsLike {
+      case ConfMap(List("a1", "b1"), source, _) =>
+        source must beSome("y")
     }
   }
 

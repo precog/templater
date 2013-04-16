@@ -48,7 +48,9 @@ class ConfMultiplexer {
         val result = for {
           element <- configuration[List[String]]("list")
           subConf <- multiplex(configuration detach element)
-        } yield subConf copy (path = element :: subConf.path, parameters = commonValues ++ subConf.parameters)
+        } yield subConf copy (path = element :: subConf.path,
+                              source = subConf.source orElse sourceLocation,
+                              parameters = commonValues ++ subConf.parameters)
 
         result
 
