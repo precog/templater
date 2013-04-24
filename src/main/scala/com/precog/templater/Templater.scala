@@ -50,6 +50,7 @@ object Templater {
   }
 
   // TODO: test with ramfs
+  // TODO: add timings for benchmark
   def process(interpolator: Interpolator, confMap: ConfMap, source: String, targetPath: Path) {
     // TODO: if source is a directory, treat it as a PathSet and walk through it
     // TODO: check for .iss extension
