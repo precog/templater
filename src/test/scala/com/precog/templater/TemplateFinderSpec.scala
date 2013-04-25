@@ -10,6 +10,7 @@ class TemplateFinderSpec extends Specification {
 
   def is = s2"""
     Template Finder
+      Returns all files at base path                    $returnsFilesAtBase
       Returns all files on a given path                 $returnsFilesFromPath
       Does not return directories on a given path       $doesntReturnDiretories
       Does not return files on subdirectories           $doesntReturnFilesFromPathSubdir
@@ -47,6 +48,10 @@ class TemplateFinderSpec extends Specification {
   def asListOfFileNames(ps: PathSet[Path]): List[String] = ps.toList map (_.name)
 
   // Tests
+  def returnsFilesAtBase = {
+    asListOfFileNames(finder.atBase) must containAllOf(rootTemplateFiles)
+  }
+
   def returnsFilesFromPath = {
     asListOfFileNames(finder fromPath ".") must containAllOf(rootTemplateFiles)
   }

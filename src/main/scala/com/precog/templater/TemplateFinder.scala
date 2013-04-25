@@ -16,7 +16,17 @@ class TemplateFinder(base: Path, suffix: String = ".iss") {
   def withSuffix(newSuffix: String): TemplateFinder = new TemplateFinder(base, suffix = newSuffix)
 
   /**
-   * Returns all paths satisfying the constraints at a given path from the base.
+   * Returns all paths satisfying the constraints at the base.
+   *
+   * @return `PathSet` of `Path` for the files satisfying the conditions
+   */
+  def atBase: PathSet[Path] = {
+    findFilesAt(base)
+  }
+
+  /**
+   * Returns all paths satisfying the constraints at a given path relative to the base
+   * or absolute.
    *
    * @param from relative path from base search path, or absolute path for the search
    * @return `PathSet` of `Path` for the files satisfying the conditions
@@ -25,6 +35,16 @@ class TemplateFinder(base: Path, suffix: String = ".iss") {
     val fromPath = Path fromString from
     val path = if (fromPath.isAbsolute) fromPath else (base / from)
 
+    findFilesAt(path)
+  }
+
+  /**
+   * Returns all paths satisfying the constraints at a given path.
+   *
+   * @param path
+   * @return
+   */
+  def findFilesAt(path: Path): PathSet[Path] = {
     path * (IsFile && suffixGlob)
   }
 }

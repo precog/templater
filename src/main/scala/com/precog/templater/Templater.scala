@@ -21,8 +21,8 @@ object Templater {
         opt("o", "output", "output directory for interpolated files; defaults to current work directory") {
           (v: String, c: Config) => c.copy(targetDir = v)
         },
-        arglistOpt("<paths>", "paths to files or directories of templates") {
-          (v: String, c: Config) => c.copy(sources = v :: c.sources)
+        arg("<path>", "path to the directory where the templates can be found") {
+          (v: String, c: Config) => c.copy(source = v)
         }
       )
     }
@@ -37,24 +37,22 @@ object Templater {
       val conf = Configuration load argConf.configPath detach "templater" // FIXME: deal gracefully with configuration not found
       val confMultiplexer = new ConfMultiplexer
       val confMaps = confMultiplexer multiplex conf
-      val targetPath = FileSystem.default fromString argConf.targetDir // FIXME: create if necessary or abort if not found
+      val targetPath = FileSystem.default fromString argConf.targetDir
+      targetPath.createDirectory(failIfExists = false, createParents = true) // TODO: Warn if exists; abort?
+      val finder = new TemplateFinder(Path fromString argConf.source) // FIXME: test whether source is a directory or a file
 
       for {
         confMap     <- confMaps
         interpolator = new Interpolator(confMap.parameters.toSeq: _*)
-        source      <- argConf.sources // FIXME: only use source as base path for confMap with templateSource
+        source      <- finder fromPath (confMap.source getOrElse ".")
       } process(interpolator, confMap, source = source, targetPath = targetPath)
-
-      // TODO: use templateSource as source for filenames
     }
   }
 
   // TODO: test with ramfs
   // TODO: add timings for benchmark
-  def process(interpolator: Interpolator, confMap: ConfMap, source: String, targetPath: Path) {
-    // TODO: if source is a directory, treat it as a PathSet and walk through it
-    // TODO: check for .iss extension
-    val inputFile = Path fromString source
+  def process(interpolator: Interpolator, confMap: ConfMap, source: Path, targetPath: Path) {
+    val inputFile = source
     val template = inputFile string Codec.UTF8
     val output = interpolator interpolate template
 
