@@ -1,3 +1,5 @@
+import AssemblyKeys._ // put this at the top of the file
+
 scalaVersion := "2.10.1"
 
 organization := "com.precog"
@@ -27,3 +29,5 @@ resolvers += "specs2-resolver-0" at "https://oss.sonatype.org/content/repositori
 resolvers += "specs2-resolver-1" at "https://oss.sonatype.org/content/repositories/snapshots"
 
 net.virtualvoid.sbt.graph.Plugin.graphSettings
+
+assemblySettings
