@@ -103,12 +103,11 @@ class ConfMultiplexerSpec extends Specification {
   def ignoresSpecialParameters = {
     val Seq(ConfMap(_, _, valuesWithType), _*) = confMultiplexer multiplex confWithTypeList
 
-    (valuesWithType.pp must not haveKey("type")) and
+    (valuesWithType must not haveKey("type")) and
       (valuesWithType must not haveKey("templateSource"))
   }
 
   def typeValueIsNotParameter = {
-    // FIXME: make this test work with non-List returns
     val Seq(ConfMap(_, _, valuesWithType), _*) = confMultiplexer multiplex confWithTypeList
 
     valuesWithType must not haveKey("list")
@@ -122,8 +121,7 @@ class ConfMultiplexerSpec extends Specification {
       """.stripMargin
 
     val nestedConf = conf attach ("subBlock", Configuration parse nestedBlock)
-    // FIXME: make this test work with non-List returns
-    val ConfMap(_, _, values) :: _ = confMultiplexer multiplex nestedConf
+    val Seq(ConfMap(_, _, values), _*) = confMultiplexer multiplex nestedConf
 
     values must haveSize(6)
   }
@@ -273,7 +271,6 @@ class ConfMultiplexerSpec extends Specification {
     def combinationsAreNotMixed = {
       val multiplexedValues = confMultiplexer multiplex confWithTypeCombination
 
-      // FIXME: not haveKeys == exists(key / key not in values), but we need forall
       multiplexedValues must haveAllElementsLike {
         case ConfMap(List("a1", "b1"), _, valuesA1B1) =>
           valuesA1B1 must not haveKeys("a2", "a3", "b2")
