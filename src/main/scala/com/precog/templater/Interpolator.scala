@@ -6,7 +6,7 @@ import scala.reflect.runtime.currentMirror
 /** Generates interpolated strings based on input strings and parameters.
   */
 class Interpolator(parameters: (String, String)*) {
-  val startInterpolation = """s""""""
+  val startInterpolation = """s"""""" // TODO: move constants to an object companion
   val endInterpolation = """""""""
 
   val simpleVals = parameters.collect {

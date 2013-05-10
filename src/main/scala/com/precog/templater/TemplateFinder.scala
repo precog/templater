@@ -45,6 +45,7 @@ class TemplateFinder(base: Path, suffix: String = ".iss") {
    * @return
    */
   def findFilesAt(path: Path): PathSet[Path] = {
-    path * (IsFile && suffixGlob)
+    // TODO: warn if path doesn't exist or is not a directory?
+    PathSet(List(path) filter (_.isDirectory): _*) * (IsFile && suffixGlob)
   }
 }
